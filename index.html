@@ -188,7 +188,7 @@
         // --- Environment Configuration ---
         const firebaseConfig = typeof __firebase_config !== 'undefined' 
             ? JSON.parse(__firebase_config) 
-            : { apiKey: "AIzaSyAoU9IYE_wIqMQI2OeYORbC1SQsTM1nRww",
+            : {apiKey: "AIzaSyAoU9IYE_wIqMQI2OeYORbC1SQsTM1nRww",
   authDomain: "probe101.firebaseapp.com",
   projectId: "probe101",
   storageBucket: "probe101.firebasestorage.app",
@@ -197,8 +197,6 @@
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         
         // --- API KEY CONFIGURATION ---
-        // **FIXED**: Added a placeholder for your Gemini API Key.
-        // You must replace "YOUR_GEMINI_API_KEY" with a real key for the AI to work.
         const GEMINI_API_KEY = "AIzaSyABBoGL4O2Equv-1bhG-_9YArhhyv2cBA4"; 
 
         // --- Global Variables ---
@@ -211,6 +209,7 @@
         let currentGameId = null;
         let gameUnsubscribe = null; 
         let roundTimerInterval = null;
+        window.currentGameData = {}; // Global cache for game state
 
         // --- DOM Element References ---
         const views = {
@@ -234,7 +233,6 @@
                 await authenticateUser();
                 
                 setupEventListeners();
-                setupGlobalGameStateListener();
             } catch (error) {
                 console.error("Initialization failed:", error);
                 const roleSelectionView = document.getElementById('role-selection-view');
@@ -279,11 +277,18 @@
         }
 
         function setupEventListeners() {
-            document.getElementById('moderator-role-btn').addEventListener('click', () => handleRoleSelection('moderator'));
+            document.getElementById('moderator-role-btn').addEventListener('click', () => {
+                console.log("Moderator button clicked");
+                handleRoleSelection('moderator');
+            });
             document.getElementById('team-role-btn').addEventListener('click', () => {
+                console.log("Team button clicked");
                 document.getElementById('team-name-input-container').classList.remove('hidden');
             });
-            document.getElementById('join-game-btn').addEventListener('click', () => handleRoleSelection('team'));
+            document.getElementById('join-game-btn').addEventListener('click', () => {
+                 console.log("Join Game button clicked");
+                handleRoleSelection('team');
+            });
             
             document.getElementById('start-new-round-btn').addEventListener('click', startNewRound);
             document.getElementById('end-round-btn').addEventListener('click', () => updateGameState({ state: 'scoring' }));
@@ -352,16 +357,10 @@
                     window.currentGameData = doc.data(); // Cache the latest game state
                     updateUIFromGameState(doc.data());
                 } else {
-                    if (currentRole === 'team') {
-                        teamWaitingState.classList.remove('hidden');
-                        teamActiveState.classList.add('hidden');
-                        teamSubmittedState.classList.add('hidden');
-                    }
-                    if (currentRole === 'moderator') {
-                        moderatorIdleState.classList.remove('hidden');
-                        moderatorActiveState.classList.add('hidden');
-                    }
+                    setDoc(gameRef, { state: 'idle' });
                 }
+            }, (error) => {
+                console.error("Firestore listener error:", error);
             });
         }
         
@@ -401,7 +400,7 @@
             if (currentRole === 'moderator') {
                 moderatorIdleState.classList.add('hidden');
                 moderatorActiveState.classList.remove('hidden');
-                document.getElementById('moderator-case-display').textContent = gameData.case.question;
+                document.getElementById('moderator-case-display').textContent = gameData.case?.question;
                 updateModeratorLists(gameData.teams);
             }
             if (currentRole === 'team') {
@@ -413,7 +412,7 @@
                     teamWaitingState.classList.add('hidden');
                     teamActiveState.classList.remove('hidden');
                     teamSubmittedState.classList.add('hidden');
-                    document.getElementById('team-case-display').textContent = gameData.case.question;
+                    document.getElementById('team-case-display').textContent = gameData.case?.question;
                     updateChatWindow(gameData.chats ? gameData.chats[currentTeamName] : []);
                     startRoundTimer(gameData.startTime);
                 }
@@ -477,6 +476,7 @@
         
         // --- Timer Logic ---
         function startRoundTimer(startTime) {
+            if (!startTime) return; 
             const jokerBtn = document.getElementById('joker-btn');
             
             roundTimerInterval = setInterval(() => {
@@ -515,8 +515,7 @@
                 const caseText = await callGemini("Generate a short, complex business problem scenario for a team to solve. The problem should be ambiguous but have a clear underlying root cause and a customer goal. Provide only the problem description.");
                 
                 if (caseText.startsWith("Error:")) {
-                    // Don't start the round if AI fails
-                    alert(caseText); // Or use a nicer modal
+                    document.getElementById('moderator-case-display').textContent = caseText;
                     return;
                 }
 
@@ -544,6 +543,10 @@
             chatInput.value = '';
             
             const currentGameState = window.currentGameData;
+            if (!currentGameState || !currentGameState.case) {
+                console.error("Game state not ready for chat.");
+                return;
+            }
             const caseContext = currentGameState.case.question;
             
             const [answer, scoreText] = await Promise.all([
@@ -623,58 +626,52 @@
             document.getElementById('scoreboard-modal').classList.remove('hidden');
         }
 
-        // --- Gemini API Call ---
-       async function callGemini(prompt) {
-    console.log("--- Starting Gemini API Call ---");
+        // --- Gemini API Call with Diagnostics ---
+        async function callGemini(prompt) {
+            console.log("--- Starting Gemini API Call ---");
 
-    if (!GEMINI_API_KEY || GEMINI_API_KEY === "YOUR_GEMINI_API_KEY") {
-        console.error("DEBUG: Gemini API Key is missing or is still the placeholder.");
-        return "Error: Gemini API Key is not configured.";
-    }
+            if (!GEMINI_API_KEY || GEMINI_API_KEY === "YOUR_GEMINI_API_KEY") {
+                console.error("DEBUG: Gemini API Key is missing or is still the placeholder.");
+                return "Error: Gemini API Key is not configured.";
+            }
 
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${GEMINI_API_KEY}`;
-    console.log("DEBUG: Calling URL:", apiUrl);
-    console.log("DEBUG: Sending prompt:", prompt);
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${GEMINI_API_KEY}`;
+            console.log("DEBUG: Calling URL:", apiUrl);
+            console.log("DEBUG: Sending prompt:", prompt);
 
-    const payload = { contents: [{ role: "user", parts: [{ text: prompt }] }] };
+            const payload = { contents: [{ role: "user", parts: [{ text: prompt }] }] };
 
-    try {
-        const response = await fetch(apiUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
 
-        console.log("DEBUG: Received response object from server:", response);
+                console.log("DEBUG: Received response object from server:", response);
 
-        if (!response.ok) {
-            const errorBody = await response.text(); // Use .text() to avoid JSON errors
-            console.error("DEBUG: API call was not OK. Status:", response.status);
-            console.error("DEBUG: API error response body:", errorBody);
-            throw new Error(`API call failed with status: ${response.status}`);
-        }
+                if (!response.ok) {
+                    const errorBody = await response.text();
+                    console.error("DEBUG: API call was not OK. Status:", response.status);
+                    console.error("DEBUG: API error response body:", errorBody);
+                    throw new Error(`API call failed with status: ${response.status}`);
+                }
 
-        const result = await response.json();
-        console.log("DEBUG: API call successful. Result:", result);
+                const result = await response.json();
+                console.log("DEBUG: API call successful. Result:", result);
 
-        if (result.candidates?.[0]?.content?.parts) {
-            return result.candidates[0].content.parts[0].text;
-        }
+                if (result.candidates?.[0]?.content?.parts) {
+                    return result.candidates[0].content.parts[0].text;
+                }
 
-        console.warn("DEBUG: AI response was valid but had no content. Full response:", result);
-        return "AI could not generate a response.";
+                console.warn("DEBUG: AI response was valid but had no content. Full response:", result);
+                return "AI could not generate a response.";
 
-    } catch (error) {
-        console.error("--- Full Gemini API call error caught in CATCH block ---");
-        console.error(error);
-        return `Error: Could not communicate with AI. Check console for details.`;
-    }
-}
-        
-        // --- Global State Caching ---
-        function setupGlobalGameStateListener() {
-            window.currentGameData = {};
-            // This listener is attached when a user selects a role and game ID
+            } catch (error) {
+                console.error("--- Full Gemini API call error caught in CATCH block ---");
+                console.error(error);
+                return `Error: Could not communicate with AI. Check console for details.`;
+            }
         }
 
     </script>
