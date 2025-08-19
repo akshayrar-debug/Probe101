@@ -188,12 +188,14 @@
         // --- Environment Configuration ---
         const firebaseConfig = typeof __firebase_config !== 'undefined' 
             ? JSON.parse(__firebase_config) 
-            : { apiKey: "AIzaSyAoU9IYE_wIqMQI2OeYORbC1SQsTM1nRww",
-  authDomain: "probe101.firebaseapp.com",
-  projectId: "probe101",
-  storageBucket: "probe101.firebasestorage.app",
-  messagingSenderId: "826559769140",
-  appId: "1:826559769140:web:8277aa48c82efd4cfeb861" };
+            : { 
+                apiKey: "AIzaSyAoU9IYE_wIqMQI2OeYORbC1SQsTM1nRww",
+                authDomain: "probe101.firebaseapp.com",
+                projectId: "probe101",
+                storageBucket: "probe101.firebasestorage.app",
+                messagingSenderId: "826559769140",
+                appId: "1:826559769140:web:8277aa48c82efd4cfeb861"
+              };
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         
         // --- API KEY CONFIGURATION ---
@@ -540,17 +542,10 @@
             const currentGameState = window.currentGameData;
             if (!currentGameState || !currentGameState.case) {
                 console.error("Game state not ready for chat.");
+                chatInput.value = question; // Restore question on error
                 chatSubmitBtn.disabled = false;
                 return;
             }
-            
-            const existingChats = currentGameState.chats?.[currentTeamName] || [];
-            const tempChatEntry = { question, answer: "AI is thinking..." };
-            
-            // 1. Immediately update the database with the "thinking" message
-            await updateGameState({
-                [`chats.${currentTeamName}`]: [...existingChats, tempChatEntry]
-            });
 
             try {
                 const caseContext = currentGameState.case.question;
@@ -570,9 +565,9 @@
                 else if (scoreText.toLowerCase().includes('pure noise')) score = -5;
 
                 const finalChatEntry = { question, answer, score };
+                const existingChats = currentGameState.chats?.[currentTeamName] || [];
                 const existingScore = currentGameState.teams?.[currentTeamName]?.score || 0;
                 
-                // 2. Update the database with the final answer and score
                 await updateGameState({
                     [`chats.${currentTeamName}`]: [...existingChats, finalChatEntry],
                     [`teams.${currentTeamName}.score`]: existingScore + score
@@ -580,11 +575,7 @@
 
             } catch (error) {
                 console.error("Error handling chat submission:", error);
-                const errorChatEntry = { question, answer: "Sorry, an error occurred. Please try again." };
-                // 3. Update the database with an error message for the user
-                await updateGameState({
-                    [`chats.${currentTeamName}`]: [...existingChats, errorChatEntry]
-                });
+                chatInput.value = question; // Restore question on error
             } finally {
                 chatSubmitBtn.disabled = false;
             }
