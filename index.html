@@ -361,7 +361,6 @@
         
         // --- UI Update Logic ---
         function updateUIFromGameState(gameData) {
-            console.log("UI_DEBUG: Received new game data from Firestore. Updating UI.", gameData);
             if (!gameData) return;
             if (roundTimerInterval) clearInterval(roundTimerInterval);
 
@@ -454,7 +453,6 @@
         }
 
         function updateChatWindow(chatHistory = []) {
-            console.log("UI_DEBUG: Updating chat window with this history:", chatHistory);
             const chatWindow = document.getElementById('chat-window');
             chatWindow.innerHTML = '';
             if (chatHistory && chatHistory.length > 0) {
@@ -540,13 +538,11 @@
             const question = chatInput.value.trim();
             if (!question) return;
 
-            chatInput.value = '';
             chatSubmitBtn.disabled = true;
 
             const currentGameState = window.currentGameData;
             if (!currentGameState || !currentGameState.case) {
                 console.error("Game state not ready for chat.");
-                chatInput.value = question; // Restore question on error
                 chatSubmitBtn.disabled = false;
                 return;
             }
@@ -572,6 +568,9 @@
                 const existingChats = currentGameState.chats?.[currentTeamName] || [];
                 const existingScore = currentGameState.teams?.[currentTeamName]?.score || 0;
                 
+                // **FIXED**: Clear the input only after a successful AI call
+                chatInput.value = '';
+
                 await updateGameState({
                     [`chats.${currentTeamName}`]: [...existingChats, finalChatEntry],
                     [`teams.${currentTeamName}.score`]: existingScore + score
@@ -579,7 +578,7 @@
 
             } catch (error) {
                 console.error("Error handling chat submission:", error);
-                chatInput.value = question; // Restore question on error
+                // The question remains in the input box for the user to retry
             } finally {
                 chatSubmitBtn.disabled = false;
             }
@@ -646,8 +645,6 @@
 
         // --- Gemini API Call with Diagnostics ---
         async function callGemini(prompt) {
-            console.log("--- Starting Gemini API Call ---");
-
             if (!GEMINI_API_KEY || GEMINI_API_KEY === "YOUR_GEMINI_API_KEY") {
                 console.error("DEBUG: Gemini API Key is missing or is still the placeholder.");
                 return "Error: Gemini API Key is not configured.";
