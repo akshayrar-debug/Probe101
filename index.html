@@ -188,14 +188,13 @@
         // --- Environment Configuration ---
         const firebaseConfig = typeof __firebase_config !== 'undefined' 
             ? JSON.parse(__firebase_config) 
-            : { apiKey: "AIzaSyAoU9IYE_wIqMQI2OeYORbC1SQsTM1nRww",
-  authDomain: "probe101.firebaseapp.com",
-  projectId: "probe101",
-  storageBucket: "probe101.firebasestorage.app",
-  messagingSenderId: "826559769140",
-  appId: "1:826559769140:web:8277aa48c82efd4cfeb861"};
+            : { /* PASTE YOUR FIREBASE CONFIGURATION HERE FOR LOCAL TESTING */ };
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const GEMINI_API_KEY = ""; // This is provided by the environment, leave empty.
+        
+        // --- API KEY CONFIGURATION ---
+        // **FIXED**: Added a placeholder for your Gemini API Key.
+        // You must replace "YOUR_GEMINI_API_KEY" with a real key for the AI to work.
+        const GEMINI_API_KEY = "AIzaSyABBoGL4O2Equv-1bhG-_9YArhhyv2cBA4"; 
 
         // --- Global Variables ---
         const JOKER_DURATION_MS = 30 * 1000;
@@ -214,7 +213,6 @@
             moderator: document.getElementById('moderator-view'),
             team: document.getElementById('team-view'),
         };
-        // ... (other DOM element references are unchanged)
         const moderatorIdleState = document.getElementById('moderator-idle-state');
         const moderatorActiveState = document.getElementById('moderator-active-state');
         const teamWaitingState = document.getElementById('team-waiting-state');
@@ -228,7 +226,6 @@
                 db = getFirestore(app);
                 auth = getAuth(app);
                 
-                // Authenticate the user first before doing anything else
                 await authenticateUser();
                 
                 setupEventListeners();
@@ -252,7 +249,7 @@
                 console.log("Authentication successful, User ID:", userId);
             } catch (error) {
                 console.error("Authentication failed:", error);
-                throw new Error("Could not authenticate user."); // Stop execution if auth fails
+                throw new Error("Could not authenticate user.");
             }
         }
 
@@ -283,7 +280,6 @@
             });
             document.getElementById('join-game-btn').addEventListener('click', () => handleRoleSelection('team'));
             
-            // ... (other event listeners are unchanged)
             document.getElementById('start-new-round-btn').addEventListener('click', startNewRound);
             document.getElementById('end-round-btn').addEventListener('click', () => updateGameState({ state: 'scoring' }));
             document.getElementById('chat-form').addEventListener('submit', handleChatSubmit);
@@ -330,14 +326,12 @@
 
         // --- Firestore (Database) Logic ---
         function getGameDocRef() {
-            // **FIXED**: This path is compliant with the environment's security rules.
             return doc(db, 'artifacts', appId, 'public', 'data', 'games', currentGameId);
         }
 
         async function updateGameState(data) {
             try {
                 const gameRef = getGameDocRef();
-                // Use setDoc with merge to handle both creation and updates
                 await setDoc(gameRef, data, { merge: true });
             } catch (error) {
                 console.error("Error updating game state:", error);
@@ -350,9 +344,9 @@
             const gameRef = getGameDocRef();
             gameUnsubscribe = onSnapshot(gameRef, (doc) => {
                 if (doc.exists()) {
+                    window.currentGameData = doc.data(); // Cache the latest game state
                     updateUIFromGameState(doc.data());
                 } else {
-                    // If no game exists, show the appropriate waiting/idle state
                     if (currentRole === 'team') {
                         teamWaitingState.classList.remove('hidden');
                         teamActiveState.classList.add('hidden');
@@ -368,12 +362,12 @@
         
         // --- UI Update Logic ---
         function updateUIFromGameState(gameData) {
-            if (!gameData || !gameData.state) return;
+            if (!gameData) return;
             if (roundTimerInterval) clearInterval(roundTimerInterval);
 
             switch (gameData.state) {
                 case 'idle':
-                case undefined: // Handle newly created doc
+                case undefined:
                     handleIdleState(gameData);
                     break;
                 case 'active':
@@ -515,6 +509,12 @@
             try {
                 const caseText = await callGemini("Generate a short, complex business problem scenario for a team to solve. The problem should be ambiguous but have a clear underlying root cause and a customer goal. Provide only the problem description.");
                 
+                if (caseText.startsWith("Error:")) {
+                    // Don't start the round if AI fails
+                    alert(caseText); // Or use a nicer modal
+                    return;
+                }
+
                 const newGameData = {
                     state: 'active',
                     startTime: Date.now(),
@@ -522,7 +522,6 @@
                     teams: {},
                     chats: {}
                 };
-                // Use setDoc to overwrite any previous round data completely
                 await setDoc(getGameDocRef(), newGameData);
             } catch (error) {
                 console.error("Failed to start new round:", error);
@@ -621,6 +620,12 @@
 
         // --- Gemini API Call ---
         async function callGemini(prompt) {
+            // **FIXED**: Check for the placeholder API key before making a call.
+            if (!GEMINI_API_KEY || GEMINI_API_KEY === "YOUR_GEMINI_API_KEY") {
+                console.error("Gemini API Key is missing. Please add it to the script.");
+                return "Error: Gemini API Key is not configured.";
+            }
+
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${GEMINI_API_KEY}`;
             const payload = { contents: [{ role: "user", parts: [{ text: prompt }] }] };
 
@@ -630,22 +635,26 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
-                if (!response.ok) throw new Error(`API call failed with status: ${response.status}`);
+                if (!response.ok) {
+                    const errorBody = await response.json();
+                    console.error("Gemini API Error Response:", errorBody);
+                    throw new Error(`API call failed with status: ${response.status}`);
+                }
                 const result = await response.json();
                 if (result.candidates?.[0]?.content?.parts) {
                     return result.candidates[0].content.parts[0].text;
                 }
                 return "AI could not generate a response.";
             } catch (error) {
-                console.error("Gemini API call error:", error);
-                return "Error communicating with AI.";
+                console.error("Full Gemini API call error:", error);
+                return `Error: Could not communicate with AI. Check console for details.`;
             }
         }
         
         // --- Global State Caching ---
         function setupGlobalGameStateListener() {
             window.currentGameData = {};
-            // This listener will be attached when a user selects a role and game ID
+            // This listener is attached when a user selects a role and game ID
         }
 
     </script>
