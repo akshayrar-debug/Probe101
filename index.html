@@ -624,37 +624,52 @@
         }
 
         // --- Gemini API Call ---
-        async function callGemini(prompt) {
-            // **FIXED**: Check for the placeholder API key before making a call.
-            if (!GEMINI_API_KEY || GEMINI_API_KEY === "YOUR_GEMINI_API_KEY") {
-                console.error("Gemini API Key is missing. Please add it to the script.");
-                return "Error: Gemini API Key is not configured.";
-            }
+       async function callGemini(prompt) {
+    console.log("--- Starting Gemini API Call ---");
 
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${GEMINI_API_KEY}`;
-            const payload = { contents: [{ role: "user", parts: [{ text: prompt }] }] };
+    if (!GEMINI_API_KEY || GEMINI_API_KEY === "YOUR_GEMINI_API_KEY") {
+        console.error("DEBUG: Gemini API Key is missing or is still the placeholder.");
+        return "Error: Gemini API Key is not configured.";
+    }
 
-            try {
-                const response = await fetch(apiUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                if (!response.ok) {
-                    const errorBody = await response.json();
-                    console.error("Gemini API Error Response:", errorBody);
-                    throw new Error(`API call failed with status: ${response.status}`);
-                }
-                const result = await response.json();
-                if (result.candidates?.[0]?.content?.parts) {
-                    return result.candidates[0].content.parts[0].text;
-                }
-                return "AI could not generate a response.";
-            } catch (error) {
-                console.error("Full Gemini API call error:", error);
-                return `Error: Could not communicate with AI. Check console for details.`;
-            }
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${GEMINI_API_KEY}`;
+    console.log("DEBUG: Calling URL:", apiUrl);
+    console.log("DEBUG: Sending prompt:", prompt);
+
+    const payload = { contents: [{ role: "user", parts: [{ text: prompt }] }] };
+
+    try {
+        const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        console.log("DEBUG: Received response object from server:", response);
+
+        if (!response.ok) {
+            const errorBody = await response.text(); // Use .text() to avoid JSON errors
+            console.error("DEBUG: API call was not OK. Status:", response.status);
+            console.error("DEBUG: API error response body:", errorBody);
+            throw new Error(`API call failed with status: ${response.status}`);
         }
+
+        const result = await response.json();
+        console.log("DEBUG: API call successful. Result:", result);
+
+        if (result.candidates?.[0]?.content?.parts) {
+            return result.candidates[0].content.parts[0].text;
+        }
+
+        console.warn("DEBUG: AI response was valid but had no content. Full response:", result);
+        return "AI could not generate a response.";
+
+    } catch (error) {
+        console.error("--- Full Gemini API call error caught in CATCH block ---");
+        console.error(error);
+        return `Error: Could not communicate with AI. Check console for details.`;
+    }
+}
         
         // --- Global State Caching ---
         function setupGlobalGameStateListener() {
