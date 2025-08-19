@@ -361,6 +361,7 @@
         
         // --- UI Update Logic ---
         function updateUIFromGameState(gameData) {
+            console.log("UI_DEBUG: Received new game data from Firestore. Updating UI.", gameData);
             if (!gameData) return;
             if (roundTimerInterval) clearInterval(roundTimerInterval);
 
@@ -453,19 +454,22 @@
         }
 
         function updateChatWindow(chatHistory = []) {
+            console.log("UI_DEBUG: Updating chat window with this history:", chatHistory);
             const chatWindow = document.getElementById('chat-window');
             chatWindow.innerHTML = '';
-            chatHistory.forEach(msg => {
-                const questionBubble = document.createElement('div');
-                questionBubble.className = 'chat-bubble chat-question';
-                questionBubble.textContent = msg.question;
-                chatWindow.appendChild(questionBubble);
+            if (chatHistory && chatHistory.length > 0) {
+                chatHistory.forEach(msg => {
+                    const questionBubble = document.createElement('div');
+                    questionBubble.className = 'chat-bubble chat-question';
+                    questionBubble.textContent = msg.question;
+                    chatWindow.appendChild(questionBubble);
 
-                const answerBubble = document.createElement('div');
-                answerBubble.className = 'chat-bubble chat-answer';
-                answerBubble.textContent = msg.answer || "AI is thinking...";
-                chatWindow.appendChild(answerBubble);
-            });
+                    const answerBubble = document.createElement('div');
+                    answerBubble.className = 'chat-bubble chat-answer';
+                    answerBubble.textContent = msg.answer || "AI is thinking...";
+                    chatWindow.appendChild(answerBubble);
+                });
+            }
             chatWindow.scrollTop = chatWindow.scrollHeight;
         }
         
