@@ -453,6 +453,7 @@
         }
 
         function updateChatWindow(chatHistory = []) {
+            console.log("UI_DEBUG: Updating chat window with this history:", chatHistory);
             const chatWindow = document.getElementById('chat-window');
             chatWindow.innerHTML = '';
             if (chatHistory && chatHistory.length > 0) {
@@ -568,7 +569,6 @@
                 const existingChats = currentGameState.chats?.[currentTeamName] || [];
                 const existingScore = currentGameState.teams?.[currentTeamName]?.score || 0;
                 
-                // **FIXED**: Clear the input only after a successful AI call
                 chatInput.value = '';
 
                 await updateGameState({
@@ -634,7 +634,7 @@
                 const scoreDiv = document.createElement('div');
                 scoreDiv.className = `p-4 rounded-lg flex justify-between items-center ${index === 0 ? 'bg-yellow-200 border-2 border-yellow-400' : 'bg-gray-200'}`;
                 let teamDisplay = `<span class="font-bold text-lg">${index + 1}. ${team.name}</span>`;
-                if (index === 0) teamDisplay += ' 👑';
+                if (index === 0) teamDisplay += ' �';
                 if (team.jokerUsed) teamDisplay += ' (Joker)';
                 scoreDiv.innerHTML = `<div>${teamDisplay}</div><div class="font-bold text-xl">${team.score} points</div>`;
                 container.appendChild(scoreDiv);
@@ -668,6 +668,9 @@
                 }
 
                 const result = await response.json();
+                
+                // **FIXED**: Added detailed logging for the raw API response
+                console.log("RESPONSE_DEBUG: Full raw response from Gemini API:", JSON.stringify(result, null, 2));
 
                 if (result.candidates?.[0]?.content?.parts) {
                     return result.candidates[0].content.parts[0].text;
@@ -685,3 +688,4 @@
     </script>
 </body>
 </html>
+�
