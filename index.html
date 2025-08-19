@@ -188,7 +188,12 @@
         // --- Environment Configuration ---
         const firebaseConfig = typeof __firebase_config !== 'undefined' 
             ? JSON.parse(__firebase_config) 
-            : { /* PASTE YOUR FIREBASE CONFIGURATION HERE FOR LOCAL TESTING */ };
+            : { apiKey: "AIzaSyAoU9IYE_wIqMQI2OeYORbC1SQsTM1nRww",
+  authDomain: "probe101.firebaseapp.com",
+  projectId: "probe101",
+  storageBucket: "probe101.firebasestorage.app",
+  messagingSenderId: "826559769140",
+  appId: "1:826559769140:web:8277aa48c82efd4cfeb861" };
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         
         // --- API KEY CONFIGURATION ---
