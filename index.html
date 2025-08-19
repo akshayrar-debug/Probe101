@@ -131,7 +131,7 @@
 
                 <div class="grid md:grid-cols-2 gap-6">
                     <!-- AI Chat -->
-                    <div class="bg-white p-6 rounded-lg shadow-md flex flex-col h-[500px]">
+                    <div class="bg-white p-6 rounded-lg shadow-md flex flex-col h-[60vh] md:h-auto">
                         <h3 class="text-lg font-semibold mb-3 border-b pb-2">Ask the AI</h3>
                         <div id="chat-window" class="flex-grow overflow-y-auto mb-4 flex flex-col p-2 bg-gray-50 rounded-lg">
                             <!-- Chat messages will be appended here -->
@@ -188,7 +188,7 @@
         // --- Environment Configuration ---
         const firebaseConfig = typeof __firebase_config !== 'undefined' 
             ? JSON.parse(__firebase_config) 
-            : {apiKey: "AIzaSyAoU9IYE_wIqMQI2OeYORbC1SQsTM1nRww",
+            : { apiKey: "AIzaSyAoU9IYE_wIqMQI2OeYORbC1SQsTM1nRww",
   authDomain: "probe101.firebaseapp.com",
   projectId: "probe101",
   storageBucket: "probe101.firebasestorage.app",
@@ -277,18 +277,11 @@
         }
 
         function setupEventListeners() {
-            document.getElementById('moderator-role-btn').addEventListener('click', () => {
-                console.log("Moderator button clicked");
-                handleRoleSelection('moderator');
-            });
+            document.getElementById('moderator-role-btn').addEventListener('click', () => handleRoleSelection('moderator'));
             document.getElementById('team-role-btn').addEventListener('click', () => {
-                console.log("Team button clicked");
                 document.getElementById('team-name-input-container').classList.remove('hidden');
             });
-            document.getElementById('join-game-btn').addEventListener('click', () => {
-                 console.log("Join Game button clicked");
-                handleRoleSelection('team');
-            });
+            document.getElementById('join-game-btn').addEventListener('click', () => handleRoleSelection('team'));
             
             document.getElementById('start-new-round-btn').addEventListener('click', startNewRound);
             document.getElementById('end-round-btn').addEventListener('click', () => updateGameState({ state: 'scoring' }));
@@ -354,7 +347,7 @@
             const gameRef = getGameDocRef();
             gameUnsubscribe = onSnapshot(gameRef, (doc) => {
                 if (doc.exists()) {
-                    window.currentGameData = doc.data(); // Cache the latest game state
+                    window.currentGameData = doc.data();
                     updateUIFromGameState(doc.data());
                 } else {
                     setDoc(gameRef, { state: 'idle' });
@@ -586,7 +579,16 @@
             const jokerBtn = document.getElementById('joker-btn');
             jokerBtn.disabled = true;
             jokerBtn.textContent = "Joker Used!";
-            await updateGameState({ [`teams.${currentTeamName}.jokerUsed`]: true });
+            
+            const currentGameState = window.currentGameData;
+            const teamData = currentGameState.teams?.[currentTeamName] || {};
+
+            await updateGameState({ 
+                [`teams.${currentTeamName}`]: {
+                    ...teamData,
+                    jokerUsed: true 
+                }
+            });
         }
         
         // --- Scoring and Scoreboard ---
