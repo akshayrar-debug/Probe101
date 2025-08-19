@@ -138,7 +138,7 @@
                         </div>
                         <form id="chat-form" class="flex gap-2">
                             <input type="text" id="chat-input" placeholder="Ask a probing question..." class="flex-grow p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:outline-none" required>
-                            <button type="submit" class="bg-teal-500 text-white px-5 py-2 rounded-lg font-semibold hover:bg-teal-600 transition duration-300">Send</button>
+                            <button type="submit" id="chat-submit-btn" class="bg-teal-500 text-white px-5 py-2 rounded-lg font-semibold hover:bg-teal-600 transition duration-300">Send</button>
                         </form>
                     </div>
                     <!-- Submission -->
@@ -193,7 +193,7 @@
   projectId: "probe101",
   storageBucket: "probe101.firebasestorage.app",
   messagingSenderId: "826559769140",
-  appId: "1:826559769140:web:8277aa48c82efd4cfeb861" };
+  appId: "1:826559769140:web:8277aa48c82efd4cfeb861"};
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         
         // --- API KEY CONFIGURATION ---
@@ -530,37 +530,52 @@
         async function handleChatSubmit(e) {
             e.preventDefault();
             const chatInput = document.getElementById('chat-input');
+            const chatSubmitBtn = document.getElementById('chat-submit-btn');
             const question = chatInput.value.trim();
             if (!question) return;
-            
+
             chatInput.value = '';
-            
+            chatSubmitBtn.disabled = true;
+
             const currentGameState = window.currentGameData;
             if (!currentGameState || !currentGameState.case) {
                 console.error("Game state not ready for chat.");
+                chatSubmitBtn.disabled = false;
                 return;
             }
-            const caseContext = currentGameState.case.question;
             
-            const [answer, scoreText] = await Promise.all([
-                callGemini(`Context: ${caseContext}\n\nQuestion: "${question}"\n\nAs an AI assistant, provide a helpful but not overly direct answer.`),
-                callGemini(`Context: ${caseContext}\nThe goal is to find the root cause. Question: "${question}"\nClassify this question as "pure signal", "pure noise", or "mixed signal/noise". Respond with only one of these three options.`)
-            ]);
+            // Optimistic UI update
+            const tempChatHistory = [...(currentGameState.chats?.[currentTeamName] || []), { question, answer: "AI is thinking..." }];
+            updateChatWindow(tempChatHistory);
 
-            let score = 0;
-            if (scoreText.toLowerCase().includes('pure signal')) score = 10;
-            else if (scoreText.toLowerCase().includes('mixed')) score = 5;
-            else if (scoreText.toLowerCase().includes('pure noise')) score = -5;
+            try {
+                const caseContext = currentGameState.case.question;
+                
+                const [answer, scoreText] = await Promise.all([
+                    callGemini(`Context: ${caseContext}\n\nQuestion: "${question}"\n\nAs an AI assistant, provide a helpful but not overly direct answer.`),
+                    callGemini(`Context: ${caseContext}\nThe goal is to find the root cause. Question: "${question}"\nClassify this question as "pure signal", "pure noise", or "mixed signal/noise". Respond with only one of these three options.`)
+                ]);
 
-            const newChatEntry = { question, answer, score };
-            
-            const existingChats = currentGameState.chats?.[currentTeamName] || [];
-            const existingScore = currentGameState.teams?.[currentTeamName]?.score || 0;
-            
-            await updateGameState({
-                [`chats.${currentTeamName}`]: [...existingChats, newChatEntry],
-                [`teams.${currentTeamName}.score`]: existingScore + score
-            });
+                let score = 0;
+                if (scoreText.toLowerCase().includes('pure signal')) score = 10;
+                else if (scoreText.toLowerCase().includes('mixed')) score = 5;
+                else if (scoreText.toLowerCase().includes('pure noise')) score = -5;
+
+                const newChatEntry = { question, answer, score };
+                
+                const existingChats = currentGameState.chats?.[currentTeamName] || [];
+                const existingScore = currentGameState.teams?.[currentTeamName]?.score || 0;
+                
+                await updateGameState({
+                    [`chats.${currentTeamName}`]: [...existingChats, newChatEntry],
+                    [`teams.${currentTeamName}.score`]: existingScore + score
+                });
+            } catch (error) {
+                console.error("Error handling chat submission:", error);
+                // Optionally, revert the optimistic UI update or show an error message
+            } finally {
+                chatSubmitBtn.disabled = false;
+            }
         }
         
         async function handleFinalSubmission(e) {
@@ -580,7 +595,6 @@
             jokerBtn.disabled = true;
             jokerBtn.textContent = "Joker Used!";
             
-            // **FIXED**: This is a more direct and reliable way to update a nested field.
             await updateGameState({ 
                 [`teams.${currentTeamName}.jokerUsed`]: true 
             });
