@@ -193,7 +193,7 @@
   projectId: "probe101",
   storageBucket: "probe101.firebasestorage.app",
   messagingSenderId: "826559769140",
-  appId: "1:826559769140:web:8277aa48c82efd4cfeb861"};
+  appId: "1:826559769140:web:8277aa48c82efd4cfeb861" };
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         
         // --- API KEY CONFIGURATION ---
@@ -544,9 +544,13 @@
                 return;
             }
             
-            // Optimistic UI update
-            const tempChatHistory = [...(currentGameState.chats?.[currentTeamName] || []), { question, answer: "AI is thinking..." }];
-            updateChatWindow(tempChatHistory);
+            const existingChats = currentGameState.chats?.[currentTeamName] || [];
+            const tempChatEntry = { question, answer: "AI is thinking..." };
+            
+            // 1. Immediately update the database with the "thinking" message
+            await updateGameState({
+                [`chats.${currentTeamName}`]: [...existingChats, tempChatEntry]
+            });
 
             try {
                 const caseContext = currentGameState.case.question;
@@ -556,23 +560,31 @@
                     callGemini(`Context: ${caseContext}\nThe goal is to find the root cause. Question: "${question}"\nClassify this question as "pure signal", "pure noise", or "mixed signal/noise". Respond with only one of these three options.`)
                 ]);
 
+                if (answer.startsWith("Error:") || scoreText.startsWith("Error:")) {
+                    throw new Error("One or more AI calls failed. See console for details.");
+                }
+
                 let score = 0;
                 if (scoreText.toLowerCase().includes('pure signal')) score = 10;
                 else if (scoreText.toLowerCase().includes('mixed')) score = 5;
                 else if (scoreText.toLowerCase().includes('pure noise')) score = -5;
 
-                const newChatEntry = { question, answer, score };
-                
-                const existingChats = currentGameState.chats?.[currentTeamName] || [];
+                const finalChatEntry = { question, answer, score };
                 const existingScore = currentGameState.teams?.[currentTeamName]?.score || 0;
                 
+                // 2. Update the database with the final answer and score
                 await updateGameState({
-                    [`chats.${currentTeamName}`]: [...existingChats, newChatEntry],
+                    [`chats.${currentTeamName}`]: [...existingChats, finalChatEntry],
                     [`teams.${currentTeamName}.score`]: existingScore + score
                 });
+
             } catch (error) {
                 console.error("Error handling chat submission:", error);
-                // Optionally, revert the optimistic UI update or show an error message
+                const errorChatEntry = { question, answer: "Sorry, an error occurred. Please try again." };
+                // 3. Update the database with an error message for the user
+                await updateGameState({
+                    [`chats.${currentTeamName}`]: [...existingChats, errorChatEntry]
+                });
             } finally {
                 chatSubmitBtn.disabled = false;
             }
@@ -687,4 +699,4 @@
 
     </script>
 </body>
-</ht
+</html>
